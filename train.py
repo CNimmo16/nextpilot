@@ -1,15 +1,14 @@
 import os
 import torch
 import torch.nn as nn
-from tokenizers import Tokenizer, models, trainers, pre_tokenizers, processors
 from model import SimpleDecoder
-from transformers import LlamaForCausalLM, CodeLlamaTokenizer
+from transformers import LlamaForCausalLM, CodeLlamaTokenizer, BitsAndBytesConfig
+from tokenizer import tokenizer
 
-# 2. Dataset class
 class CodeDataset(torch.utils.data.Dataset):
-    def __init__(self, data_dir, tokenizer, max_length=512):
+    def __init__(self, data_dir, _tokenizer, max_length=512):
         self.files = [os.path.join(data_dir, f) for f in os.listdir(data_dir)]
-        self.tokenizer: CodeLlamaTokenizer = tokenizer
+        self.tokenizer: CodeLlamaTokenizer = _tokenizer
         self.max_length = max_length
 
     def __len__(self):
@@ -26,38 +25,91 @@ class CodeDataset(torch.utils.data.Dataset):
                 code = code[0:30000]
             
             # Tokenize and add special tokens
-            tokens = self.tokenizer.encode(code)
-            tokens = self.tokenizer.convert_tokens_to_ids(["<s>"]) + tokens + self.tokenizer.convert_tokens_to_ids(["</s>"])
+            inputs = self.tokenizer(
+                code,
+                truncation=True,
+                max_length=self.max_length,
+                return_tensors="pt",
+                padding="max_length"
+            )
+
+            return {
+                "input_ids": inputs["input_ids"].squeeze(),
+                "attention_mask": inputs["attention_mask"].squeeze(),
+                "labels": inputs["input_ids"].squeeze()
+            }
             
-            # Split into chunks of max_length
-            chunks = []
-            for i in range(0, len(tokens), self.max_length):
-                chunk = tokens[i:i+self.max_length]
-                if len(chunk) < self.max_length:
-                    chunk += self.tokenizer.convert_tokens_to_ids(["<pad>"]) * (self.max_length - len(chunk))
-                chunks.append(chunk)
-            return torch.tensor(chunks, dtype=torch.long)
+            # # Split into chunks of max_length
+            # chunks = []
+            # for i in range(0, len(tokens), self.max_length):
+            #     chunk = tokens[i:i+self.max_length]
+            #     if len(chunk) < self.max_length:
+            #         chunk += self.tokenizer.convert_tokens_to_ids(["<pad>"]) * (self.max_length - len(chunk))
+            #     chunks.append(chunk)
+            # return torch.tensor(chunks, dtype=torch.long)
 
-# 3. Training loop
-def train(model, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
+TEMPERATURE = 0.7
+ALPHA = 0.7  # Weight between teacher and ground truth loss
+def distill_loss(student_logits, teacher_logits, labels):
+    # Soften teacher logits with temperature
+    soft_teacher = torch.nn.functional.softmax(teacher_logits / TEMPERATURE, dim=-1)
+    
+    # Calculate distillation loss (KL divergence)
+    loss_kl = torch.nn.functional.kl_div(
+        torch.nn.functional.log_softmax(student_logits / TEMPERATURE, dim=-1),
+        soft_teacher,
+        reduction="batchmean"
+    ) * (TEMPERATURE ** 2)
+    
+    # Calculate standard cross-entropy loss
+    loss_ce = torch.nn.functional.cross_entropy(
+        student_logits.view(-1, student_logits.size(-1)),
+        labels.view(-1),
+        ignore_index=tokenizer.pad_token_id
+    )
+    
+    return ALPHA * loss_kl + (1 - ALPHA) * loss_ce
 
-    model.train()
-    criterion = nn.CrossEntropyLoss(ignore_index=0)  # Ignore padding
+def train(student, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16
+    )
+
+    teacher = LlamaForCausalLM.from_pretrained(
+        "codellama/CodeLlama-7b-hf",
+        device_map="auto",
+        torch_dtype=torch.float16,
+        quantization_config=bnb_config
+    ).eval()  # Freeze 
+    # to account for added pad token
+    teacher.resize_token_embeddings(len(tokenizer))
+
+    student.train()
     
     for epoch in range(epochs):
         total_loss = 0
         for batch_idx, batch in enumerate(dataloader):
-            batch = batch.to(device)
+            inputs = batch["input_ids"].to(DEVICE)
+            attention_mask = batch["attention_mask"].to(DEVICE)
+            labels = batch["labels"].to(DEVICE)
             
-            # Create shifted inputs/targets
-            inputs = batch[:, :-1]
-            targets = batch[:, 1:]
+            # Get teacher predictions
+            with torch.no_grad():
+                teacher_outputs = teacher(
+                    input_ids=inputs,
+                    attention_mask=attention_mask
+                )
+                teacher_logits = teacher_outputs.logits
             
-            optimizer.zero_grad()
-            outputs = model(inputs)
+            # Get student predictions
+            student_logits = student(inputs)
             
-            # Reshape for loss calculation
-            loss = criterion(outputs.view(-1, outputs.size(-1)), targets.reshape(-1))
+            # Compute distillation loss
+            loss = distill_loss(student_logits, teacher_logits, labels)
+
             loss.backward()
             optimizer.step()
             
@@ -69,7 +121,7 @@ def train(model, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
         print(f"Completed Epoch {epoch+1} Average Loss: {total_loss/len(dataloader):.4f}")
             
         if on_epoch_done is not None:
-            on_epoch_done(epoch, model)
+            on_epoch_done(epoch, student)
 
 # 4. Main execution
 if __name__ == "__main__":
@@ -80,10 +132,9 @@ if __name__ == "__main__":
     SEQ_LENGTH = 512
     EPOCHS = 30
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.0003
 
     # Initialize components
-    tokenizer: CodeLlamaTokenizer = CodeLlamaTokenizer.from_pretrained("codellama/CodeLlama-7b-hf")
     dataset = CodeDataset(DATA_DIR, tokenizer, max_length=SEQ_LENGTH)
 
     def collate(batch):
@@ -91,10 +142,11 @@ if __name__ == "__main__":
         for item in batch:
             list_of_all = torch.cat((list_of_all, item), 0)
         return list_of_all
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate)
+    # dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     # Initialize model
-    model = SimpleDecoder(vocab_size=tokenizer.vocab_size, max_seq_len=SEQ_LENGTH).to(DEVICE)
+    model = SimpleDecoder(vocab_size=len(tokenizer), max_seq_len=SEQ_LENGTH).to(DEVICE)
     model = torch.nn.DataParallel(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
