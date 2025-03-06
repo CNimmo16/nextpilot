@@ -8,11 +8,13 @@ copy_data_to_remote () {
 
     remote_homedir="$(ssh ${username}@${ip} -p ${port} "pwd")"
 
+    repo_name=distillation
+
     echo "copying files"
 
-    ssh ${username}@${ip} -p ${port} "mkdir -p ${remote_homedir}/data/nextjs_repos"
+    ssh ${username}@${ip} -p ${port} "mkdir -p ${remote_homedir}/$repo_name/data/nextjs_repos"
 
-    scp -P ${port} -r ./data/nextjs_repos ${username}@${ip}:${remote_homedir}/data/nextjs_repos
+    scp -P ${port} -r ./data/nextjs_repos ${username}@${ip}:${remote_homedir}/$repo_name/data/nextjs_repos
 
     echo ">> done"
 }
