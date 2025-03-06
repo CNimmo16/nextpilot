@@ -91,6 +91,8 @@ if __name__ == "__main__":
 
     # Initialize model
     model = SimpleDecoder(vocab_size=tokenizer.vocab_size, max_seq_len=SEQ_LENGTH).to(DEVICE)
+    model = torch.nn.DataParallel(model)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
     if not os.path.exists(MODEL_SAVE_DIR):

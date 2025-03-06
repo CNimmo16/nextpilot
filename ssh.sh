@@ -14,7 +14,13 @@ open_remote () {
 
     remote_homedir="$(ssh ${username}@${ip} -p ${port} "pwd")"
 
+    echo "cloning repo"
+
     ssh ${username}@${ip} -p ${port} -t "git clone ${repo_url}"
+
+    echo "copying .env file"
+
+    scp -P ${port} ./.env ${username}@${ip}:${remote_homedir}/${repo_name}.env
 
     echo "remote_homedir: ${remote_homedir}"
 
