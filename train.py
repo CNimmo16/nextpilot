@@ -83,12 +83,13 @@ def train(student, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
         device_map="auto",
         torch_dtype=torch.float16,
         quantization_config=bnb_config
-    ).eval()  # Freeze 
-    # to account for added pad token
+    )
+    # resize to account for added pad token
     teacher.resize_token_embeddings(len(tokenizer))
 
+    teacher.eval()
     student.train()
-    
+
     for epoch in range(epochs):
         total_loss = 0
         for batch_idx, batch in enumerate(dataloader):
@@ -137,12 +138,6 @@ if __name__ == "__main__":
     # Initialize components
     dataset = CodeDataset(DATA_DIR, tokenizer, max_length=SEQ_LENGTH)
 
-    def collate(batch):
-        list_of_all = torch.tensor([], dtype=torch.long)
-        for item in batch:
-            list_of_all = torch.cat((list_of_all, item), 0)
-        return list_of_all
-    # dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     # Initialize model
