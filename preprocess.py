@@ -10,6 +10,7 @@ OUTPUT_DIR = "data/nextjs_repos"
 PER_PAGE = 50  # Results per page
 MAX_REPOS = 200  # Max repositories to process
 OFFSET = 0
+MAX_LENGTH_PER_FILE = 50_000
 
 headers = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -44,6 +45,21 @@ def search_repos():
         time.sleep(2)  # Rate limit handling
         
     return repos[:MAX_REPOS]
+
+def has_next_config(repo_full_name):
+    """Check if repository has a next.config file with any valid extension"""
+    valid_extensions = ['js', 'ts', 'mjs']
+    
+    for ext in valid_extensions:
+        config_url = f"https://api.github.com/repos/{repo_full_name}/contents/next.config.{ext}"
+        response = requests.get(config_url, headers=headers)
+        
+        if response.status_code == 200:
+            return True
+            
+        time.sleep(0.5)
+        
+    return False
 
 def has_app_directory(repo_full_name):
     """Check if repository contains an /app directory within 3 levels"""
@@ -108,8 +124,8 @@ def download_and_save_repo(repo):
     repo_full_name = f"{owner}/{repo_name}"
     
     # Check for next.config.js
-    config_url = f"https://api.github.com/repos/{repo_full_name}/contents/next.config.js"
-    if requests.get(config_url, headers=headers).status_code != 200:
+    if not has_next_config(repo_full_name):
+        print('no next config, skipping')
         return
         
     # Check for app directory
@@ -122,17 +138,23 @@ def download_and_save_repo(repo):
     
     # Save to file
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    output_path = os.path.join(OUTPUT_DIR, f"{repo_name.replace('/', '_')}.txt")
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        for file in files:
+
+    chunk_idx = 0
+    content_len = 0
+    for file in files:
+        output_path = os.path.join(OUTPUT_DIR, f"{repo_name.replace('/', '_')}_{chunk_idx}.txt")
+        with open(output_path, 'w', encoding='utf-8') as f:
             try:
                 content_url = file['url']
                 content = requests.get(content_url, headers=headers).json()['content']
+                content_len += len(content)
                 # Decode base64 content
                 f.write(f"// File: {file['path']}\n")
                 f.write(f"{base64.b64decode(content).decode('utf-8')}\n\n")
                 time.sleep(0.5)
+                if content_len > MAX_LENGTH_PER_FILE:
+                    content_len = 0
+                    chunk_idx += 1
             except Exception as e:
                 print(f"Error downloading {file['path']}: {str(e)}")
 
