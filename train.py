@@ -102,6 +102,11 @@ def train_model(student, train_loader, val_loader, optimizer, device, epochs, on
                     attention_mask=attention_mask
                 )
                 teacher_logits = teacher_outputs.logits
+
+            teacher_prediction_text = tokenizer.batch_decode(teacher_logits.argmax(dim=-1), skip_special_tokens=True)
+            labels_text = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            print(f"Teacher: {teacher_prediction_text[0]}\nGround Truth: {labels_text[0]}")
             
             # Get student predictions
             student_logits = student(inputs)
