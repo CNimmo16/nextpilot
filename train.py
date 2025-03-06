@@ -43,15 +43,6 @@ class CodeDataset(torch.utils.data.Dataset):
                 "attention_mask": inputs["attention_mask"].squeeze(),
                 "labels": inputs["input_ids"].squeeze()
             }
-            
-            # # Split into chunks of max_length
-            # chunks = []
-            # for i in range(0, len(tokens), self.max_length):
-            #     chunk = tokens[i:i+self.max_length]
-            #     if len(chunk) < self.max_length:
-            #         chunk += self.tokenizer.convert_tokens_to_ids(["<pad>"]) * (self.max_length - len(chunk))
-            #     chunks.append(chunk)
-            # return torch.tensor(chunks, dtype=torch.long)
 
 TEMPERATURE = 0.7
 ALPHA = 0.7  # Weight between teacher and ground truth loss
@@ -96,7 +87,7 @@ def train_model(student, train_loader, val_loader, optimizer, device, epochs, on
     student.train()
 
     for epoch in range(epochs):
-        print(f"==== Epoch {epoch} ====")
+        print(f"==== Epoch {epoch+1} ====")
         total_train_loss = 0
         pbar = tqdm.tqdm(enumerate(train_loader), total=len(train_loader))
         for batch_idx, batch in pbar:
@@ -118,12 +109,14 @@ def train_model(student, train_loader, val_loader, optimizer, device, epochs, on
             # Compute distillation loss
             loss = distill_loss(student_logits, teacher_logits, labels)
 
-            pbar.set_description(f"Training... (distillation loss {loss:.3f})")
-
             loss.backward()
             optimizer.step()
             
             total_train_loss += loss.item()
+
+            avg_loss = total_train_loss / (batch_idx + 1)
+
+            pbar.set_description(f"Training... (avg. distillation loss {avg_loss:.3f})")
 
         total_val_loss = 0
         for batch_idx, batch in tqdm.tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating..."):
@@ -162,7 +155,7 @@ if __name__ == "__main__":
     val_split = 0.1
     max_val_count = 5000
     data_count = len(dataset)
-    val_count = round(min(data_count * val_split, max_val_count))
+    val_count = round(max(min(data_count * val_split, max_val_count), 1))
     train = torch.utils.data.Subset(dataset, range(data_count - val_count))
     val = torch.utils.data.Subset(dataset, range(data_count - val_count, data_count))
 
