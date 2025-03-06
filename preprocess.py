@@ -172,7 +172,7 @@ def download_and_save_repo(repo):
         with open(output_path, 'w', encoding='utf-8') as f:
             try:
                 content_url = file['url']
-                content = make_github_request(url).json()['content']
+                content = make_github_request(content_url).json()['content']
                 content_len += len(content)
                 # Decode base64 content
                 f.write(f"// File: {file['path']}\n")

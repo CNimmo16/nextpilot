@@ -43,8 +43,6 @@ def train(model, dataloader, optimizer, device, epochs=5):
     for epoch in range(epochs):
         total_loss = 0
         for batch_idx, batch in enumerate(dataloader):
-            print('batch', batch_idx)
-            print('size of batch', batch.shape)
             batch = batch.to(device)
             
             # Create shifted inputs/targets
@@ -70,10 +68,10 @@ def train(model, dataloader, optimizer, device, epochs=5):
 if __name__ == "__main__":
     # Config
     DATA_DIR = "data/nextjs_repos"
-    MODEL_SAVE_PATH = "nextjs_decoder.pth"
-    BATCH_SIZE = 1
+    MODEL_SAVE_DIR = "data/weights"
+    BATCH_SIZE = 16
     SEQ_LENGTH = 512
-    EPOCHS = 3
+    EPOCHS = 30
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     LEARNING_RATE = 3e-4
 
@@ -85,7 +83,6 @@ if __name__ == "__main__":
         list_of_all = torch.tensor([], dtype=torch.long)
         for item in batch:
             list_of_all = torch.cat((list_of_all, item), 0)
-        print(list_of_all.shape)
         return list_of_all
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate)
 
@@ -96,8 +93,11 @@ if __name__ == "__main__":
     # Train
     train(model, dataloader, optimizer, DEVICE, epochs=EPOCHS)
 
+    if not os.path.exists(MODEL_SAVE_DIR):
+        os.makedirs(MODEL_SAVE_DIR)
+
     # Save model
     torch.save({
         'model_state_dict': model.state_dict(),
         'tokenizer': tokenizer,
-    }, MODEL_SAVE_PATH)
+    }, os.path.join(MODEL_SAVE_DIR, 'nextjs_decoder.pth'))
