@@ -44,6 +44,7 @@ def train(model, dataloader, optimizer, device, epochs=5):
         total_loss = 0
         for batch_idx, batch in enumerate(dataloader):
             print('batch', batch_idx)
+            print('size of batch', batch.shape)
             batch = batch.to(device)
             
             # Create shifted inputs/targets
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     # Config
     DATA_DIR = "data/nextjs_repos"
     MODEL_SAVE_PATH = "nextjs_decoder.pth"
-    BATCH_SIZE = 8
+    BATCH_SIZE = 1
     SEQ_LENGTH = 512
     EPOCHS = 3
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -98,5 +99,5 @@ if __name__ == "__main__":
     # Save model
     torch.save({
         'model_state_dict': model.state_dict(),
-        'tokenizer': tokenizer.tokenizer,
+        'tokenizer': tokenizer,
     }, MODEL_SAVE_PATH)

@@ -17,6 +17,36 @@ headers = {
     "Accept": "application/vnd.github+json"
 }
 
+def check_rate_limit(response):
+    """Check rate limit headers and sleep if necessary."""
+    if 'X-RateLimit-Remaining' not in response.headers:
+        return
+    
+    remaining = int(response.headers['X-RateLimit-Remaining'])
+    reset_time = int(response.headers['X-RateLimit-Reset'])  # Unix timestamp
+    
+    if remaining <= 10:  # Buffer to avoid hitting the limit
+        sleep_duration = max(reset_time - time.time(), 0) + 10  # Add 10 seconds buffer
+        print(f"Rate limit approaching. Sleeping for {sleep_duration:.1f} seconds...")
+        time.sleep(sleep_duration)
+
+def make_github_request(url):
+    """Make a GitHub API request with rate limit handling."""
+    while True:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            check_rate_limit(response)
+            return response
+        elif response.status_code == 403 and 'rate limit' in response.text.lower():
+            # Handle rate limit exceeded
+            reset_time = int(response.headers['X-RateLimit-Reset'])
+            sleep_duration = max(reset_time - time.time(), 0) + 10  # Add 10 seconds buffer
+            print(f"Rate limit exceeded. Sleeping for {sleep_duration:.1f} seconds...")
+            time.sleep(sleep_duration)
+        else:
+            raise Exception(f"Error: {response.status_code} - {response.text}")
+
 def search_repos():
     """Search for TypeScript repos with Next.js topics created after 2024-01-01"""
     base_query = (
@@ -29,7 +59,7 @@ def search_repos():
     
     while len(repos) < MAX_REPOS:
         url = f"https://api.github.com/search/repositories?q={urllib.parse.quote(base_query)}&sort=stars&order=desc&per_page={PER_PAGE}&page={page}&offset={OFFSET}"
-        response = requests.get(url, headers=headers)
+        response = make_github_request(url)
         
         if response.status_code != 200:
             print(f"Error searching repos: {response.json()}")
@@ -52,13 +82,12 @@ def has_next_config(repo_full_name):
     
     for ext in valid_extensions:
         config_url = f"https://api.github.com/repos/{repo_full_name}/contents/next.config.{ext}"
-        response = requests.get(config_url, headers=headers)
-        
-        if response.status_code == 200:
+        try:
+            response = make_github_request(config_url)
             return True
-            
-        time.sleep(0.5)
-        
+        except Exception as e:
+            continue
+
     return False
 
 def has_app_directory(repo_full_name):
@@ -71,7 +100,7 @@ def has_app_directory(repo_full_name):
             continue
             
         url = f"https://api.github.com/repos/{repo_full_name}/contents/{current['path']}"
-        response = requests.get(url, headers=headers)
+        response = make_github_request(url)
         
         if response.status_code == 200:
             contents = response.json()
@@ -85,8 +114,6 @@ def has_app_directory(repo_full_name):
                     })
         elif response.status_code != 404:
             print(f"Error checking directory: {response.json()}")
-            
-        time.sleep(0.5)
         
     return False
 
@@ -100,7 +127,7 @@ def get_ts_files(repo_full_name):
             f"https://api.github.com/search/code?"
             f"q=repo:{repo_full_name}+extension:ts+extension:tsx&per_page=100&page={page}"
         )
-        response = requests.get(url, headers=headers)
+        response = make_github_request(url)
         
         if response.status_code != 200:
             print(f"Error searching code: {response.json()}")
@@ -113,7 +140,6 @@ def get_ts_files(repo_full_name):
             break
             
         page += 1
-        time.sleep(2)
         
     return files
 
@@ -146,12 +172,11 @@ def download_and_save_repo(repo):
         with open(output_path, 'w', encoding='utf-8') as f:
             try:
                 content_url = file['url']
-                content = requests.get(content_url, headers=headers).json()['content']
+                content = make_github_request(url).json()['content']
                 content_len += len(content)
                 # Decode base64 content
                 f.write(f"// File: {file['path']}\n")
                 f.write(f"{base64.b64decode(content).decode('utf-8')}\n\n")
-                time.sleep(0.5)
                 if content_len > MAX_LENGTH_PER_FILE:
                     content_len = 0
                     chunk_idx += 1
@@ -165,4 +190,3 @@ if __name__ == "__main__":
     for idx, repo in enumerate(repos):
         print(f"Processing {idx+1}/{len(repos)}: {repo['full_name']}")
         download_and_save_repo(repo)
-        time.sleep(2)  # Rate limit handling
