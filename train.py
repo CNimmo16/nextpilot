@@ -20,6 +20,10 @@ class CodeDataset(torch.utils.data.Dataset):
             code = f.read()
             # Remove comment headers
             code = '\n'.join([line for line in code.split('\n') if not line.startswith('//')])
+
+            if len(code) > 30000:
+                # avoid super long files
+                code = code[0:30000]
             
             # Tokenize and add special tokens
             tokens = self.tokenizer.encode(code)
@@ -61,22 +65,22 @@ def train(model, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
             
             if batch_idx % 100 == 0:
                 print(f"Epoch {epoch+1} | Batch {batch_idx} | Loss: {loss.item():.4f}")
-            
-                if on_epoch_done is not None:
-                    on_epoch_done(epoch, model)
 
-        print(f"Epoch {epoch+1} Average Loss: {total_loss/len(dataloader):.4f}")
+        print(f"Completed Epoch {epoch+1} Average Loss: {total_loss/len(dataloader):.4f}")
+            
+        if on_epoch_done is not None:
+            on_epoch_done(epoch, model)
 
 # 4. Main execution
 if __name__ == "__main__":
     # Config
     DATA_DIR = "data/nextjs_repos"
     MODEL_SAVE_DIR = "data/weights"
-    BATCH_SIZE = 16
+    BATCH_SIZE = 2
     SEQ_LENGTH = 512
     EPOCHS = 30
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    LEARNING_RATE = 3e-4
+    LEARNING_RATE = 0.001
 
     # Initialize components
     tokenizer: CodeLlamaTokenizer = CodeLlamaTokenizer.from_pretrained("codellama/CodeLlama-7b-hf")
@@ -87,7 +91,7 @@ if __name__ == "__main__":
         for item in batch:
             list_of_all = torch.cat((list_of_all, item), 0)
         return list_of_all
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate)
 
     # Initialize model
     model = SimpleDecoder(vocab_size=tokenizer.vocab_size, max_seq_len=SEQ_LENGTH).to(DEVICE)
