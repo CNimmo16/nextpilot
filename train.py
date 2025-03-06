@@ -4,6 +4,11 @@ import torch.nn as nn
 from model import SimpleDecoder
 from transformers import LlamaForCausalLM, CodeLlamaTokenizer, BitsAndBytesConfig
 from tokenizer import tokenizer
+import tqdm
+import random
+
+torch.manual_seed(16)
+random.seed(16)
 
 class CodeDataset(torch.utils.data.Dataset):
     def __init__(self, data_dir, _tokenizer, max_length=512):
@@ -70,7 +75,7 @@ def distill_loss(student_logits, teacher_logits, labels):
     
     return ALPHA * loss_kl + (1 - ALPHA) * loss_ce
 
-def train(student, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
+def train_model(student, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
@@ -91,11 +96,13 @@ def train(student, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
     student.train()
 
     for epoch in range(epochs):
-        total_loss = 0
-        for batch_idx, batch in enumerate(dataloader):
-            inputs = batch["input_ids"].to(DEVICE)
-            attention_mask = batch["attention_mask"].to(DEVICE)
-            labels = batch["labels"].to(DEVICE)
+        print(f"==== Epoch {epoch} ====")
+        total_train_loss = 0
+        pbar = tqdm.tqdm(enumerate(train_loader), total=len(train_loader))
+        for batch_idx, batch in pbar:
+            inputs = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
             
             # Get teacher predictions
             with torch.no_grad():
@@ -111,15 +118,28 @@ def train(student, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
             # Compute distillation loss
             loss = distill_loss(student_logits, teacher_logits, labels)
 
+            pbar.set_description(f"Training... (distillation loss {loss:.3f})")
+
             loss.backward()
             optimizer.step()
             
-            total_loss += loss.item()
-            
-            if batch_idx % 100 == 0:
-                print(f"Epoch {epoch+1} | Batch {batch_idx} | Loss: {loss.item():.4f}")
+            total_train_loss += loss.item()
 
-        print(f"Completed Epoch {epoch+1} Average Loss: {total_loss/len(dataloader):.4f}")
+        total_val_loss = 0
+        for batch_idx, batch in tqdm.tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating..."):
+            inputs = batch["input_ids"].to(device)
+            labels = batch["labels"].to(device)
+            
+            outputs = student(inputs)
+            
+            loss = torch.nn.functional.cross_entropy(outputs.view(-1, outputs.size(-1)), labels.view(-1), ignore_index=tokenizer.pad_token_id)
+
+            loss.backward()
+            optimizer.step()
+            
+            total_val_loss += loss.item()
+
+        print(f"Completed Epoch {epoch+1}: Average Train Loss: {total_train_loss/len(train_loader):.4f}, Average Val Loss: {total_val_loss/len(val_loader):.4f}")
             
         if on_epoch_done is not None:
             on_epoch_done(epoch, student)
@@ -131,14 +151,23 @@ if __name__ == "__main__":
     MODEL_SAVE_DIR = "data/weights"
     BATCH_SIZE = 2
     SEQ_LENGTH = 512
-    EPOCHS = 30
+    EPOCHS = 100
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     LEARNING_RATE = 0.0003
 
     # Initialize components
     dataset = CodeDataset(DATA_DIR, tokenizer, max_length=SEQ_LENGTH)
 
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+    # Get train & val datasets
+    val_split = 0.1
+    max_val_count = 5000
+    data_count = len(dataset)
+    val_count = round(min(data_count * val_split, max_val_count))
+    train = torch.utils.data.Subset(dataset, range(data_count - val_count))
+    val = torch.utils.data.Subset(dataset, range(data_count - val_count, data_count))
+
+    train_loader = torch.utils.data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val, batch_size=BATCH_SIZE, shuffle=False)
 
     # Initialize model
     model = SimpleDecoder(vocab_size=len(tokenizer), max_seq_len=SEQ_LENGTH).to(DEVICE)
@@ -157,4 +186,4 @@ if __name__ == "__main__":
         }, os.path.join(MODEL_SAVE_DIR, f"nextjs_decoder_epoch_{epoch}.pth"))
 
     # Train
-    train(model, dataloader, optimizer, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)
+    train_model(model, train_loader, val_loader, optimizer, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)
