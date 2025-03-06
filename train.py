@@ -62,8 +62,8 @@ def train(model, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
             if batch_idx % 100 == 0:
                 print(f"Epoch {epoch+1} | Batch {batch_idx} | Loss: {loss.item():.4f}")
             
-            if on_epoch_done is not None:
-                on_epoch_done(epoch, model)
+                if on_epoch_done is not None:
+                    on_epoch_done(epoch, model)
 
         print(f"Epoch {epoch+1} Average Loss: {total_loss/len(dataloader):.4f}")
 

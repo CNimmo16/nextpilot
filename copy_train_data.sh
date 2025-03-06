@@ -14,7 +14,7 @@ copy_data_to_remote () {
 
     ssh ${username}@${ip} -p ${port} "mkdir -p ${remote_homedir}/$repo_name/data/nextjs_repos"
 
-    scp -P ${port} -r ./data/nextjs_repos ${username}@${ip}:${remote_homedir}/$repo_name/data/nextjs_repos
+    scp -P ${port} -r ./data/nextjs_repos ${username}@${ip}:${remote_homedir}/$repo_name/data
 
     echo ">> done"
 }
