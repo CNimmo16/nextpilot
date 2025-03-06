@@ -1,0 +1,18 @@
+[project]
+name = "intoMotion"
+version = "0.1.0"
+description = "Convert videos to framer motion code"
+readme = "README.md"
+python = "3.10"
+requires-python = "==3.10.*"
+dependencies = [
+    "accelerate>=1.4.0",
+    "ffmpeg-python>=0.2.0",
+    "pandas>=2.2.3",
+    "pillow>=11.1.0",
+    "pyannote-audio>=3.3.2",
+    "pytubefix>=8.12.2",
+    "requests>=2.32.3",
+    "torch>=2.6.0",
+    "transformers>=4.49.0",
+]
