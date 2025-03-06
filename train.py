@@ -35,7 +35,7 @@ class CodeDataset(torch.utils.data.Dataset):
             return torch.tensor(chunks, dtype=torch.long)
 
 # 3. Training loop
-def train(model, dataloader, optimizer, device, epochs=5):
+def train(model, dataloader, optimizer, device, epochs=5, on_epoch_done=None):
 
     model.train()
     criterion = nn.CrossEntropyLoss(ignore_index=0)  # Ignore padding
@@ -61,6 +61,9 @@ def train(model, dataloader, optimizer, device, epochs=5):
             
             if batch_idx % 100 == 0:
                 print(f"Epoch {epoch+1} | Batch {batch_idx} | Loss: {loss.item():.4f}")
+            
+            if on_epoch_done is not None:
+                on_epoch_done(epoch, model)
 
         print(f"Epoch {epoch+1} Average Loss: {total_loss/len(dataloader):.4f}")
 
@@ -90,14 +93,15 @@ if __name__ == "__main__":
     model = SimpleDecoder(vocab_size=tokenizer.vocab_size, max_seq_len=SEQ_LENGTH).to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
-    # Train
-    train(model, dataloader, optimizer, DEVICE, epochs=EPOCHS)
-
     if not os.path.exists(MODEL_SAVE_DIR):
         os.makedirs(MODEL_SAVE_DIR)
 
-    # Save model
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'tokenizer': tokenizer,
-    }, os.path.join(MODEL_SAVE_DIR, 'nextjs_decoder.pth'))
+    def on_epoch_done(epoch, model):
+        # Save model
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'tokenizer': tokenizer,
+        }, os.path.join(MODEL_SAVE_DIR, f"nextjs_decoder_epoch_{epoch}.pth"))
+
+    # Train
+    train(model, dataloader, optimizer, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)

@@ -10,7 +10,7 @@ OUTPUT_DIR = "data/nextjs_repos"
 PER_PAGE = 50  # Results per page
 MAX_REPOS = 200  # Max repositories to process
 OFFSET = 0
-MAX_LENGTH_PER_FILE = 50_000
+MAX_LENGTH_PER_FILE = 5_000
 
 headers = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
