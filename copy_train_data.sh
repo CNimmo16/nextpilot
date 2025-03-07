@@ -10,11 +10,18 @@ copy_data_to_remote () {
 
     repo_name=distillation
 
+    echo "zipping..."
+    
+    zip -r data/nextjs_repos.zip data/nextjs_repos
+
     echo "copying files"
 
-    ssh ${username}@${ip} -p ${port} "mkdir -p ${remote_homedir}/$repo_name/data/nextjs_repos"
+    ssh ${username}@${ip} -p ${port} "mkdir -p ${remote_homedir}/$repo_name/data"
 
-    scp -P ${port} -r ./data/nextjs_repos ${username}@${ip}:${remote_homedir}/$repo_name/data
+    scp -P ${port} -r ./data/nextjs_repos.zip ${username}@${ip}:${remote_homedir}/$repo_name/data
+
+    ssh ${username}@${ip} -p ${port} "rm -rf ${remote_homedir}/$repo_name/data/nextjs_repos"
+    ssh ${username}@${ip} -p ${port} "unzip ${remote_homedir}/$repo_name/data/nextjs_repos.zip -d ${remote_homedir}/$repo_name/data/nextjs_repos"
 
     echo ">> done"
 }
