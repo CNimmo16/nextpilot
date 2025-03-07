@@ -32,7 +32,7 @@ def generate_code(
 
     # Decode the generated sequence
     generated_code = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-    return generated_code
+    return generated_code[len(prompt):]
 
 if __name__ == '__main__':
 
@@ -85,9 +85,9 @@ if __name__ == '__main__':
         )
 
         print(colored('Llama completion:', 'green'))
-        print(llama_code)
+        print(f"{prompt}{colored(llama_code, 'yellow')}")
 
         print('\n')
 
         print(colored('Distilled model completion:', 'green'))
-        print(model_code)
+        print(f"{prompt}{colored(model_code, 'yellow')}")
