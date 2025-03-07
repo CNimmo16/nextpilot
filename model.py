@@ -1,6 +1,7 @@
 import torch
 from transformers import BitsAndBytesConfig, LlamaForCausalLM
 from tokenizer import tokenizer
+from types import SimpleNamespace
 
 class SimpleDecoder(torch.nn.Module):
     def __init__(self, vocab_size=10000, max_seq_len=512):
@@ -9,7 +10,9 @@ class SimpleDecoder(torch.nn.Module):
         self.d_model = 480       # Embedding dimension
         self.n_layers = 4        # Number of decoder layers
         self.n_heads = 8         # Attention heads
-        self.d_ff = 1920         # Feed-forward dimension
+        self.d_ff = 1920         # Feed-forward dimension\
+
+        self.max_seq_len = max_seq_len
         
         # Embedding layers
         self.token_embed = torch.nn.Embedding(vocab_size, self.d_model)
@@ -35,8 +38,10 @@ class SimpleDecoder(torch.nn.Module):
         
         for layer in self.layers:
             x = layer(x, mask)
+
+        logits = self.proj(x)
             
-        return self.proj(x)
+        return SimpleNamespace(logits=logits)
 
 class DecoderLayer(torch.nn.Module):
     def __init__(self, d_model, n_heads, d_ff):

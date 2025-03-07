@@ -1,6 +1,5 @@
 import torch
-from torch.nn.functional import softmax
-from model import get_llama
+from model import get_llama, SimpleDecoder
 from tokenizer import tokenizer
 
 def generate_code(
@@ -10,22 +9,6 @@ def generate_code(
     max_length=100,
     device="cuda"
 ):
-    """
-    Generate code completions using your model.
-
-    Args:
-        model: Your trained decoder model.
-        tokenizer: The tokenizer used for encoding/decoding.
-        prompt: The input prompt (string).
-        max_length: Maximum length of the generated sequence.
-        temperature: Sampling temperature (higher = more random).
-        top_k: Top-k sampling (limit sampling to top-k tokens).
-        top_p: Nucleus sampling (limit sampling to top-p probability mass).
-        device: Device to run the model on ("cuda" or "cpu").
-
-    Returns:
-        Generated code completion (string).
-    """
     model.eval()
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
     generated_ids = input_ids
@@ -51,31 +34,55 @@ def generate_code(
     return generated_code
 
 if __name__ == '__main__':
-    model = get_llama()
 
-    # model = SimpleDecoder(vocab_size=tokenizer.vocab_size).to("cuda")
+    epoch = input('Enter an epoch to load weights for, or leave blank to use only the pretrained llama model: ')
 
-    # checkpoint = torch.load("data/weights/nextjs_decoder_epoch_3.pth", weights_only=False)
-    # state_dict = checkpoint['model_state_dict']
-    # for key in list(state_dict.keys()):
-    #     if key.startswith("module."):
-    #         state_dict[key[len("module."):]] = state_dict.pop(key)
+    llama = get_llama()
 
-    # model.load_state_dict(state_dict)
+    if epoch:
+        model = SimpleDecoder(vocab_size=len(tokenizer)).to("cuda")
+
+        checkpoint = torch.load(f"data/weights/nextjs_decoder_epoch_{epoch}.pth", weights_only=False)
+        state_dict = checkpoint['model_state_dict']
+        for key in list(state_dict.keys()):
+            if key.startswith("module."):
+                state_dict[key[len("module."):]] = state_dict.pop(key)
+
+        model.load_state_dict(state_dict)
 
     # Define a prompt
     prompt = """
-    // Next.js API route example
-    export default function handler(req, res) {
-    if (req.method === 'POST') {
-    """
+// File: src/components/ui/input.tsx
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+export interface InputProps
+extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+({ className
+"""
 
     # Generate code
-    generated_code = generate_code(
+    llama_code = generate_code(
+        llama,
+        tokenizer,
+        prompt,
+        max_length=100
+    )
+
+    # Generate code
+    model_code = generate_code(
         model,
         tokenizer,
         prompt,
         max_length=100
     )
 
-    print(generated_code)
+    print('Llama completion:')
+    print(llama_code)
+
+    print('\nDistilled model completion:')
+    print(model_code)
+

@@ -5,9 +5,10 @@ from transformers import CodeLlamaTokenizer
 from tokenizer import tokenizer
 import tqdm
 import random
+import util
+import shutil
 
 torch.manual_seed(16)
-random.seed(16)
 
 class CodeDataset(torch.utils.data.Dataset):
     def __init__(self, data_dir, _tokenizer: CodeLlamaTokenizer, max_length=512):
@@ -38,7 +39,7 @@ class CodeDataset(torch.utils.data.Dataset):
             }
 
 TEMPERATURE = 0.7
-ALPHA = 1  # Weight between teacher and ground truth loss
+ALPHA = 0.7  # Weight between teacher and ground truth loss
 def distill_loss(student_logits, teacher_logits, labels):
     # Soften teacher logits with temperature
     soft_teacher = torch.nn.functional.softmax(teacher_logits / TEMPERATURE, dim=-1)
@@ -51,18 +52,14 @@ def distill_loss(student_logits, teacher_logits, labels):
     ) * (TEMPERATURE ** 2)
     
     # Calculate standard cross-entropy loss
-    loss_ce = torch.nn.functional.cross_entropy(
-        student_logits.view(-1, student_logits.size(-1)),
-        labels.view(-1),
-        ignore_index=tokenizer.pad_token_id
-    )
+    loss_ce = torch.nn.functional.cross_entropy(student_logits.reshape(-1, student_logits.size(-1)), labels.reshape(-1), ignore_index=tokenizer.pad_token_id)
     
     return ALPHA * loss_kl + (1 - ALPHA) * loss_ce
 
-def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
+def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
     teacher = get_llama()
     teacher.eval()
-
+    
     for epoch in range(epochs):
         print(f"==== Epoch {epoch+1} ====")
         total_train_loss = 0
@@ -77,16 +74,18 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
             # Get teacher predictions
             with torch.no_grad():
                 teacher_outputs = teacher(
-                    input_ids=inputs,
+                    input_ids=inputs[:, :-1],
                     attention_mask=attention_mask
                 )
                 teacher_logits = teacher_outputs.logits
-            
-            # Get student predictions
-            student_logits = student(inputs)
+
+            optimizer.zero_grad()
+
+            target_inputs = inputs[:, 1:]  # Shift right to create targets
+            student_logits = student(inputs[:, :-1], mask=student_mask).logits
             
             # Compute distillation loss
-            loss = distill_loss(student_logits, teacher_logits, inputs)
+            loss = distill_loss(student_logits, teacher_logits, target_inputs)
 
             loss.backward()
             optimizer.step()
@@ -103,14 +102,15 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
         for batch_idx, batch in tqdm.tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating..."):
             inputs = batch["input_ids"].to(device)
             
-            outputs = student(inputs)
+            student_logits = student(inputs[:, :-1], mask=student_mask).logits
 
-            # predictions = torch.argmax(outputs, dim=-1)
+            predictions = torch.argmax(student_logits, dim=-1)
+            print("Sample prediction:", tokenizer.decode(predictions[0]))
+            print("Expected:", tokenizer.decode(inputs[0, 1:]))
 
-            # print(predictions.shape)
-            # print(tokenizer.batch_decode(predictions))
+            target_inputs = inputs[:, 1:]  # Shift right to create targets
             
-            loss = torch.nn.functional.cross_entropy(outputs.view(-1, outputs.size(-1)), inputs.view(-1), ignore_index=tokenizer.pad_token_id)
+            loss = torch.nn.functional.cross_entropy(student_logits.view(-1, student_logits.size(-1)), target_inputs.view(-1), ignore_index=tokenizer.pad_token_id)
             
             total_val_loss += loss.item()
 
@@ -118,6 +118,8 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
             
         if on_epoch_done is not None:
             on_epoch_done(epoch, student)
+
+    return student
 
 # 4. Main execution
 if __name__ == "__main__":
@@ -150,15 +152,38 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
-    if not os.path.exists(MODEL_SAVE_DIR):
-        os.makedirs(MODEL_SAVE_DIR)
+    if os.path.exists(MODEL_SAVE_DIR):
+        shutil.rmtree(MODEL_SAVE_DIR)
+
+    os.makedirs(MODEL_SAVE_DIR)
 
     def on_epoch_done(epoch, model):
         # Save model
         torch.save({
             'model_state_dict': model.state_dict(),
             'tokenizer': tokenizer,
-        }, os.path.join(MODEL_SAVE_DIR, f"nextjs_decoder_epoch_{epoch}.pth"))
+        }, os.path.join(MODEL_SAVE_DIR, f"nextjs_decoder_epoch_{epoch+1}.pth"))
+
+    # Create a lower triangular matrix of ones
+    student_mask = torch.tril(torch.ones((SEQ_LENGTH - 1, SEQ_LENGTH - 1), device=DEVICE))
+    
+    # Convert the mask to a suitable format for attention (0 for allowed, -inf for masked)
+    student_mask = student_mask.masked_fill(student_mask == 0, float('-inf'))
 
     # Train
-    train_model(model, train_loader, val_loader, optimizer, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)
+    final_model = train_model(model, student_mask, train_loader, val_loader, optimizer, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)
+
+    id = util.generate_friendly_model_id(tokenizer)
+
+    final_model_dir = f"{MODEL_SAVE_DIR}/completed"
+    if not os.path.exists(final_model_dir):
+        os.makedirs(final_model_dir)
+
+    save_path = f"{final_model_dir}/{id}.pth"
+
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'tokenizer': tokenizer,
+    }, save_path)
+
+    print(f"> Model saved to {save_path}")
