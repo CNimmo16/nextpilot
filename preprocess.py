@@ -9,7 +9,6 @@ GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 OUTPUT_DIR = "data/nextjs_repos"
 PER_PAGE = 50  # Results per page
 MAX_REPOS = 200  # Max repositories to process
-OFFSET = 0
 MAX_LENGTH_PER_FILE = 5_000
 
 headers = {
@@ -58,7 +57,7 @@ def search_repos():
     page = 1
     
     while len(repos) < MAX_REPOS:
-        url = f"https://api.github.com/search/repositories?q={urllib.parse.quote(base_query)}&sort=stars&order=desc&per_page={PER_PAGE}&page={page}&offset={OFFSET}"
+        url = f"https://api.github.com/search/repositories?q={urllib.parse.quote(base_query)}&sort=stars&order=desc&per_page={PER_PAGE}&page={page}"
         response = make_github_request(url)
         
         if response.status_code != 200:
