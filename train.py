@@ -57,7 +57,7 @@ def distill_loss(student_logits, teacher_logits, labels):
     
     return ALPHA * loss_kl + (1 - ALPHA) * loss_ce
 
-def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
+def train_model(student: SimpleDecoder, student_mask, train_loader: torch.utils.data.DataLoader, val_loader: torch.utils.data.DataLoader, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler.ChainedScheduler, device, epochs, on_epoch_done=None):
     teacher = get_llama()
     teacher.eval()
 
@@ -102,6 +102,8 @@ def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, 
 
             pbar.set_description(f"Training... (avg. distillation loss {avg_loss:.3f})")
 
+            scheduler.step()
+
         student.eval()
 
         total_val_loss = 0
@@ -123,7 +125,7 @@ def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, 
         vanishing_gradients = len(vanishing)
         exploding_gradients = len(exploding)
 
-        print(f"Completed Epoch {epoch+1}: Average Train Loss: {total_train_loss/len(train_loader):.4f}, Average Val Loss: {total_val_loss/len(val_loader):.4f}")
+        print(f"Completed Epoch {epoch+1}: Average Train (distillation) Loss: {total_train_loss/len(train_loader):.4f}, Average Val (cross entropy) Loss: {total_val_loss/len(val_loader):.4f}")
         wandb.log({
             'epoch': epoch+1,
             'train-loss': total_train_loss/len(train_loader),
@@ -148,7 +150,7 @@ if __name__ == "__main__":
     SEQ_LENGTH = 512
     EPOCHS = 100
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    LEARNING_RATE = 0.0001
+    LEARNING_RATE = 0.001
 
     # Initialize components
     dataset = CodeDataset(DATA_DIR, tokenizer, max_length=SEQ_LENGTH)
@@ -170,6 +172,8 @@ if __name__ == "__main__":
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=1e-6)
+
     if os.path.exists(MODEL_SAVE_DIR):
         shutil.rmtree(MODEL_SAVE_DIR)
 
@@ -189,7 +193,7 @@ if __name__ == "__main__":
     student_mask = student_mask.masked_fill(student_mask == 0, float('-inf'))
 
     # Train
-    final_model = train_model(model, student_mask, train_loader, val_loader, optimizer, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)
+    final_model = train_model(model, student_mask, train_loader, val_loader, optimizer, scheduler, DEVICE, epochs=EPOCHS, on_epoch_done=on_epoch_done)
 
     id = util.generate_friendly_model_id(tokenizer)
 

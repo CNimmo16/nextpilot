@@ -1,6 +1,7 @@
 import torch
 from model import get_llama, SimpleDecoder
 from tokenizer import tokenizer
+from termcolor import colored
 
 def generate_code(
     model,
@@ -50,39 +51,43 @@ if __name__ == '__main__':
 
         model.load_state_dict(state_dict)
 
-    # Define a prompt
-    prompt = """
-// File: src/components/ui/input.tsx
-import * as React from "react"
+    while True:
 
-import { cn } from "@/lib/utils"
+        prompt = input('Enter a prompt, or leave blank to use test prompt: ')
 
-export interface InputProps
-extends React.InputHTMLAttributes<HTMLInputElement> {}
+        if not prompt:
+            prompt = """
+    import * as React from "react"
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-({ className
-"""
+    import { cn } from "@/lib/utils"
 
-    # Generate code
-    llama_code = generate_code(
-        llama,
-        tokenizer,
-        prompt,
-        max_length=100
-    )
+    export interface InputProps
+    extends React.InputHTMLAttributes<HTMLInputElement> {}
 
-    # Generate code
-    model_code = generate_code(
-        model,
-        tokenizer,
-        prompt,
-        max_length=100
-    )
+    const Input = React.forwardRef<HTMLInputElement, InputProps>(
+    ({ className
+    """
 
-    print('Llama completion:')
-    print(llama_code)
+        # Generate code
+        llama_code = generate_code(
+            llama,
+            tokenizer,
+            prompt,
+            max_length=100
+        )
 
-    print('\nDistilled model completion:')
-    print(model_code)
+        # Generate code
+        model_code = generate_code(
+            model,
+            tokenizer,
+            prompt,
+            max_length=100
+        )
 
+        print(colored('Llama completion:', 'green'))
+        print(llama_code)
+
+        print('\n')
+
+        print(colored('Distilled model completion:', 'green'))
+        print(model_code)
