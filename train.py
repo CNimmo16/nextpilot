@@ -24,23 +24,19 @@ class CodeDataset(torch.utils.data.Dataset):
             # Remove comment headers
             code = '\n'.join([line for line in code.split('\n') if not line.startswith('//')])
 
-            if len(code) > 30000:
-                # avoid super long files
-                code = code[0:30000]
+            code = f"<PRE>{code}<SUF>"
             
-            # Tokenize and add special tokens
             inputs = self.tokenizer(
                 code,
                 truncation=True,
-                max_length=self.max_length,
                 return_tensors="pt",
+                max_length=self.max_length,
                 padding="max_length"
             )
 
             return {
-                "input_ids": inputs["input_ids"].squeeze(),
-                "attention_mask": inputs["attention_mask"].squeeze(),
-                "labels": inputs["input_ids"].squeeze()
+                "input_ids": inputs['input_ids'].squeeze(),
+                "attention_mask": inputs['attention_mask'].squeeze(), 
             }
 
 TEMPERATURE = 0.7
@@ -79,7 +75,6 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
         for batch_idx, batch in pbar:
             inputs = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
-            labels = batch["labels"].to(device)
             
             # Get teacher predictions
             with torch.no_grad():
@@ -88,17 +83,12 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
                     attention_mask=attention_mask
                 )
                 teacher_logits = teacher_outputs.logits
-
-            teacher_prediction_text = tokenizer.batch_decode(teacher_logits.argmax(dim=-1), skip_special_tokens=True)
-            labels_text = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-            print(f"Teacher: {teacher_prediction_text[0]}\nGround Truth: {labels_text[0]}")
             
             # Get student predictions
             student_logits = student(inputs)
             
             # Compute distillation loss
-            loss = distill_loss(student_logits, teacher_logits, labels)
+            loss = distill_loss(student_logits, teacher_logits, inputs)
 
             loss.backward()
             optimizer.step()
@@ -114,11 +104,10 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
         total_val_loss = 0
         for batch_idx, batch in tqdm.tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating..."):
             inputs = batch["input_ids"].to(device)
-            labels = batch["labels"].to(device)
             
             outputs = student(inputs)
             
-            loss = torch.nn.functional.cross_entropy(outputs.view(-1, outputs.size(-1)), labels.view(-1), ignore_index=tokenizer.pad_token_id)
+            loss = torch.nn.functional.cross_entropy(outputs.view(-1, outputs.size(-1)), inputs.view(-1), ignore_index=tokenizer.pad_token_id)
             
             total_val_loss += loss.item()
 
@@ -132,7 +121,7 @@ if __name__ == "__main__":
     # Config
     DATA_DIR = "data/nextjs_repos"
     MODEL_SAVE_DIR = "data/weights"
-    BATCH_SIZE = 2
+    BATCH_SIZE = 1
     SEQ_LENGTH = 512
     EPOCHS = 100
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
