@@ -74,13 +74,13 @@ def get_llama():
     except Exception:
         bnb_config = None
 
-    llama = torch.nn.DataParallel(LlamaForCausalLM.from_pretrained(
+    llama = LlamaForCausalLM.from_pretrained(
         "codellama/CodeLlama-7b-hf",
         device_map="auto",
         torch_dtype=torch.float16,
         quantization_config=bnb_config
-    ))
+    )
     # resize to account for added pad token
     llama.resize_token_embeddings(len(tokenizer))
 
-    return llama
+    return torch.nn.DataParallel(llama)

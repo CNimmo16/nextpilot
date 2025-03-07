@@ -8,9 +8,6 @@ def generate_code(
     tokenizer,
     prompt,
     max_length=100,
-    temperature=0.8,
-    top_k=50,
-    top_p=0.95,
     device="cuda"
 ):
     """
@@ -37,34 +34,13 @@ def generate_code(
         for _ in range(max_length):
             # Get model predictions
             outputs = model(generated_ids)
-            logits = outputs[:, -1, :]  # Get logits for the last token
+            logits = outputs.logits
+            logits = logits[:, -1, :]  # Get logits for the last token
 
-            # Apply temperature
-            logits = logits / temperature
-
-            # Apply top-k filtering
-            if top_k > 0:
-                indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-                logits[indices_to_remove] = float('-inf')
-
-            # Apply top-p (nucleus) sampling
-            if top_p > 0:
-                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-                cumulative_probs = torch.cumsum(softmax(sorted_logits, dim=-1), dim=-1)
-
-                # Remove tokens outside the top-p probability mass
-                sorted_indices_to_remove = cumulative_probs > top_p
-                sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-                sorted_indices_to_remove[..., 0] = 0
-                indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-                logits[indices_to_remove] = float('-inf')
-
-            # Sample the next token
-            probs = softmax(logits, dim=-1)
-            next_token = torch.multinomial(probs, num_samples=1)
+            next_token = logits.argmax(dim=-1)
 
             # Append the generated token
-            generated_ids = torch.cat([generated_ids, next_token], dim=-1)
+            generated_ids = torch.cat([generated_ids, next_token.unsqueeze(0)], dim=-1)
 
             # Stop if the end-of-sequence token is generated
             if next_token.item() == tokenizer.eos_token_id:
@@ -99,10 +75,7 @@ if __name__ == '__main__':
         model,
         tokenizer,
         prompt,
-        max_length=100,
-        temperature=0.7,
-        top_k=50,
-        top_p=0.9
+        max_length=100
     )
 
     print(generated_code)
