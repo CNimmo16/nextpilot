@@ -1,4 +1,4 @@
-from transformers import LlamaForCausalLM, CodeLlamaTokenizer
+from transformers import CodeLlamaTokenizer
 
 tokenizer: CodeLlamaTokenizer = CodeLlamaTokenizer.from_pretrained("codellama/CodeLlama-7b-hf")
 

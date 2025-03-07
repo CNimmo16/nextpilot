@@ -1,7 +1,7 @@
 import torch
 from torch.nn.functional import softmax
-from model import SimpleDecoder
-from transformers import CodeLlamaTokenizer
+from model import get_llama
+from tokenizer import tokenizer
 
 def generate_code(
     model,
@@ -75,17 +75,17 @@ def generate_code(
     return generated_code
 
 if __name__ == '__main__':
-    tokenizer: CodeLlamaTokenizer = CodeLlamaTokenizer.from_pretrained('codellama/CodeLlama-7b-hf')
+    model = get_llama()
 
-    model = SimpleDecoder(vocab_size=tokenizer.vocab_size).to("cuda")
+    # model = SimpleDecoder(vocab_size=tokenizer.vocab_size).to("cuda")
 
-    checkpoint = torch.load("data/weights/nextjs_decoder_epoch_3.pth", weights_only=False)
-    state_dict = checkpoint['model_state_dict']
-    for key in list(state_dict.keys()):
-        if key.startswith("module."):
-            state_dict[key[len("module."):]] = state_dict.pop(key)
+    # checkpoint = torch.load("data/weights/nextjs_decoder_epoch_3.pth", weights_only=False)
+    # state_dict = checkpoint['model_state_dict']
+    # for key in list(state_dict.keys()):
+    #     if key.startswith("module."):
+    #         state_dict[key[len("module."):]] = state_dict.pop(key)
 
-    model.load_state_dict(state_dict)
+    # model.load_state_dict(state_dict)
 
     # Define a prompt
     prompt = """

@@ -1,4 +1,6 @@
 import torch
+from transformers import BitsAndBytesConfig, LlamaForCausalLM
+from tokenizer import tokenizer
 
 class SimpleDecoder(torch.nn.Module):
     def __init__(self, vocab_size=10000, max_seq_len=512):
@@ -60,3 +62,25 @@ class DecoderLayer(torch.nn.Module):
         ffn_out = self.ffn(x)
         x = self.ffn_norm(x + ffn_out)
         return x
+
+def get_llama():
+    try:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16
+        )
+    except Exception:
+        bnb_config = None
+
+    llama = torch.nn.DataParallel(LlamaForCausalLM.from_pretrained(
+        "codellama/CodeLlama-7b-hf",
+        device_map="auto",
+        torch_dtype=torch.float16,
+        quantization_config=bnb_config
+    ))
+    # resize to account for added pad token
+    llama.resize_token_embeddings(len(tokenizer))
+
+    return llama

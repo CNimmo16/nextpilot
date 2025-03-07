@@ -1,8 +1,7 @@
 import os
 import torch
-import torch.nn as nn
-from model import SimpleDecoder
-from transformers import LlamaForCausalLM, CodeLlamaTokenizer, BitsAndBytesConfig
+from model import SimpleDecoder, get_llama
+from transformers import CodeLlamaTokenizer
 from tokenizer import tokenizer
 import tqdm
 import random
@@ -11,9 +10,9 @@ torch.manual_seed(16)
 random.seed(16)
 
 class CodeDataset(torch.utils.data.Dataset):
-    def __init__(self, data_dir, _tokenizer, max_length=512):
+    def __init__(self, data_dir, _tokenizer: CodeLlamaTokenizer, max_length=512):
         self.files = [os.path.join(data_dir, f) for f in os.listdir(data_dir)]
-        self.tokenizer: CodeLlamaTokenizer = _tokenizer
+        self.tokenizer = _tokenizer
         self.max_length = max_length
 
     def __len__(self):
@@ -66,29 +65,16 @@ def distill_loss(student_logits, teacher_logits, labels):
     
     return ALPHA * loss_kl + (1 - ALPHA) * loss_ce
 
-def train_model(student, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16
-    )
-
-    teacher = LlamaForCausalLM.from_pretrained(
-        "codellama/CodeLlama-7b-hf",
-        device_map="auto",
-        torch_dtype=torch.float16,
-        quantization_config=bnb_config
-    )
-    # resize to account for added pad token
-    teacher.resize_token_embeddings(len(tokenizer))
-
+def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
+    teacher = get_llama()
     teacher.eval()
-    student.train()
 
     for epoch in range(epochs):
         print(f"==== Epoch {epoch+1} ====")
         total_train_loss = 0
+
+        student.train()
+
         pbar = tqdm.tqdm(enumerate(train_loader), total=len(train_loader))
         for batch_idx, batch in pbar:
             inputs = batch["input_ids"].to(device)
@@ -123,6 +109,8 @@ def train_model(student, train_loader, val_loader, optimizer, device, epochs, on
 
             pbar.set_description(f"Training... (avg. distillation loss {avg_loss:.3f})")
 
+        student.eval()
+
         total_val_loss = 0
         for batch_idx, batch in tqdm.tqdm(enumerate(val_loader), total=len(val_loader), desc="Validating..."):
             inputs = batch["input_ids"].to(device)
@@ -131,9 +119,6 @@ def train_model(student, train_loader, val_loader, optimizer, device, epochs, on
             outputs = student(inputs)
             
             loss = torch.nn.functional.cross_entropy(outputs.view(-1, outputs.size(-1)), labels.view(-1), ignore_index=tokenizer.pad_token_id)
-
-            loss.backward()
-            optimizer.step()
             
             total_val_loss += loss.item()
 
