@@ -26,6 +26,8 @@ class SimpleDecoder(torch.nn.Module):
         
         # Final projection
         self.proj = torch.nn.Linear(self.d_model, vocab_size)
+
+        torch.nn.init.xavier_uniform_(self.proj.weight)
         
         # Count parameters (~20M)
         total_params = sum(p.numel() for p in self.parameters())
@@ -57,6 +59,9 @@ class DecoderLayer(torch.nn.Module):
             torch.nn.Linear(d_ff, d_model)
         )
         self.ffn_norm = torch.nn.LayerNorm(d_model)
+
+        torch.nn.init.xavier_uniform_(self.ffn[0].weight)  # First Linear layer in FFN
+        torch.nn.init.xavier_uniform_(self.ffn[2].weight)  # Second Linear layer in FFN
 
     def forward(self, x, mask=None):
         # Self-attention

@@ -61,7 +61,7 @@ def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, 
     teacher = get_llama()
     teacher.eval()
 
-    wandb.init(project='distillation', name='image-decoder')
+    wandb.init(project='distillation')
     
     for epoch in range(epochs):
         print(f"==== Epoch {epoch+1} ====")
@@ -91,6 +91,9 @@ def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, 
             loss = distill_loss(student_logits, teacher_logits, target_inputs)
 
             loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
             optimizer.step()
             
             total_train_loss += loss.item()
