@@ -7,6 +7,7 @@ import tqdm
 import random
 import util
 import shutil
+import wandb
 
 torch.manual_seed(16)
 
@@ -59,6 +60,8 @@ def distill_loss(student_logits, teacher_logits, labels):
 def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, optimizer, device, epochs, on_epoch_done=None):
     teacher = get_llama()
     teacher.eval()
+
+    wandb.init(project='distillation', name='image-decoder')
     
     for epoch in range(epochs):
         print(f"==== Epoch {epoch+1} ====")
@@ -104,20 +107,32 @@ def train_model(student: SimpleDecoder, student_mask, train_loader, val_loader, 
             
             student_logits = student(inputs[:, :-1], mask=student_mask).logits
 
-            predictions = torch.argmax(student_logits, dim=-1)
-            print("Sample prediction:", tokenizer.decode(predictions[0]))
-            print("Expected:", tokenizer.decode(inputs[0, 1:]))
-
             target_inputs = inputs[:, 1:]  # Shift right to create targets
             
-            loss = torch.nn.functional.cross_entropy(student_logits.view(-1, student_logits.size(-1)), target_inputs.view(-1), ignore_index=tokenizer.pad_token_id)
+            loss = torch.nn.functional.cross_entropy(student_logits.reshape(-1, student_logits.size(-1)), target_inputs.reshape(-1), ignore_index=tokenizer.pad_token_id)
             
             total_val_loss += loss.item()
 
+        epoch_grad_norms = util.compute_grad_norms(student)
+        
+        vanishing, exploding = util.detect_gradient_issues(epoch_grad_norms, vanish_thresh=1e-6, explode_thresh=10.0)
+
+        vanishing_gradients = len(vanishing)
+        exploding_gradients = len(exploding)
+
         print(f"Completed Epoch {epoch+1}: Average Train Loss: {total_train_loss/len(train_loader):.4f}, Average Val Loss: {total_val_loss/len(val_loader):.4f}")
+        wandb.log({
+            'epoch': epoch+1,
+            'train-loss': total_train_loss/len(train_loader),
+            'val_loss': total_val_loss/len(val_loader),
+            'vanishing-gradients': vanishing_gradients,
+            'exploding-gradients': exploding_gradients
+        })
             
         if on_epoch_done is not None:
             on_epoch_done(epoch, student)
+
+    wandb.finish()
 
     return student
 
