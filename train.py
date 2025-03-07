@@ -23,8 +23,6 @@ class CodeDataset(torch.utils.data.Dataset):
             code = f.read()
             # Remove comment headers
             code = '\n'.join([line for line in code.split('\n') if not line.startswith('//')])
-
-            code = f"<PRE>{code}<SUF>"
             
             inputs = self.tokenizer(
                 code,
@@ -40,7 +38,7 @@ class CodeDataset(torch.utils.data.Dataset):
             }
 
 TEMPERATURE = 0.7
-ALPHA = 0.7  # Weight between teacher and ground truth loss
+ALPHA = 1  # Weight between teacher and ground truth loss
 def distill_loss(student_logits, teacher_logits, labels):
     # Soften teacher logits with temperature
     soft_teacher = torch.nn.functional.softmax(teacher_logits / TEMPERATURE, dim=-1)
@@ -106,6 +104,11 @@ def train_model(student: SimpleDecoder, train_loader, val_loader, optimizer, dev
             inputs = batch["input_ids"].to(device)
             
             outputs = student(inputs)
+
+            # predictions = torch.argmax(outputs, dim=-1)
+
+            # print(predictions.shape)
+            # print(tokenizer.batch_decode(predictions))
             
             loss = torch.nn.functional.cross_entropy(outputs.view(-1, outputs.size(-1)), inputs.view(-1), ignore_index=tokenizer.pad_token_id)
             
@@ -121,11 +124,11 @@ if __name__ == "__main__":
     # Config
     DATA_DIR = "data/nextjs_repos"
     MODEL_SAVE_DIR = "data/weights"
-    BATCH_SIZE = 1
+    BATCH_SIZE = 32
     SEQ_LENGTH = 512
     EPOCHS = 100
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    LEARNING_RATE = 0.0003
+    LEARNING_RATE = 0.0001
 
     # Initialize components
     dataset = CodeDataset(DATA_DIR, tokenizer, max_length=SEQ_LENGTH)
