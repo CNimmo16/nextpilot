@@ -71,7 +71,6 @@ def search_repos():
             break
             
         page += 1
-        time.sleep(2)  # Rate limit handling
         
     return repos[:MAX_REPOS]
 
