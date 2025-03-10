@@ -1,5 +1,6 @@
 from src.preprocessing import search_repos, download_and_save_repo
 
+print("Searching repos...")
 repos = search_repos()
 print(f"Found {len(repos)} repositories")
 
