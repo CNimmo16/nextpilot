@@ -1,4 +1,8 @@
-from src.preprocessing import search_repos, download_and_save_repo
+from dotenv import load_dotenv
+load_dotenv()
+
+from src.preprocessing import search_repos, download_and_save_repo  # noqa: E402
+
 
 print("Searching repos...")
 repos = search_repos()
