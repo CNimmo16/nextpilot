@@ -181,11 +181,3 @@ def download_and_save_repo(repo):
                     chunk_idx += 1
             except Exception as e:
                 print(f"Error downloading {file['path']}: {str(e)}")
-
-if __name__ == "__main__":
-    repos = search_repos()
-    print(f"Found {len(repos)} repositories")
-    
-    for idx, repo in enumerate(repos):
-        print(f"Processing {idx+1}/{len(repos)}: {repo['full_name']}")
-        download_and_save_repo(repo)

@@ -73,7 +73,7 @@ class DecoderLayer(torch.nn.Module):
         x = self.ffn_norm(x + ffn_out)
         return x
 
-def get_llama():
+def get_llama(device = 'cpu'):
     try:
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -86,10 +86,9 @@ def get_llama():
 
     llama = LlamaForCausalLM.from_pretrained(
         "codellama/CodeLlama-7b-hf",
-        device_map="auto",
         torch_dtype=torch.float16,
         quantization_config=bnb_config
-    )
+    ).to(device)
     # resize to account for added pad token
     llama.resize_token_embeddings(len(tokenizer))
 

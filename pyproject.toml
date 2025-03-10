@@ -1,7 +1,7 @@
 [project]
-name = "intoMotion"
+name = "nextpilot"
 version = "0.1.0"
-description = "Convert videos to framer motion code"
+description = "A tiny distilled model for generating nextjs code"
 readme = "README.md"
 python = "3.10"
 requires-python = "==3.10.*"
