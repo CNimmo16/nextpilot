@@ -1,10 +1,10 @@
 import torch
-from dataset import CodeDataset
-from model import SimpleDecoder, tokenizer
+from src.dataset import CodeDataset
+from src.model import SimpleDecoder, tokenizer
 import os
 import shutil
-from training import train_model
-import util
+from src.training import train_model
+from src import util
 
 # Config
 DATA_DIR = "data/nextjs_repos"

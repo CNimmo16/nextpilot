@@ -1,6 +1,6 @@
 import torch
 from transformers import BitsAndBytesConfig, LlamaForCausalLM
-from tokenizer import tokenizer
+from src.tokenizer import tokenizer
 from types import SimpleNamespace
 
 class SimpleDecoder(torch.nn.Module):

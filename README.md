@@ -9,7 +9,7 @@ Knowledge distillation to produce a small model tailored for nextjs with app rou
 ## Preprocessing
 
 1. Create a file called `.env`, and fill it with the GITHUB_TOKEN variable - `GITHUB_TOKEN=<your-token>` - replacing your token with a personal access token created through Github.
-2. With the virtual env activated, run `python -m bin.preprocess` to run a script which downloads training data via the Github API.
+2. With the virtual env activated, run `python -m bin.preprocess` to run a script which downloads training data via the Github API to the `data/nextjs_repos` folder.
 
 ## Training
 

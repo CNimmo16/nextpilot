@@ -1,8 +1,8 @@
-from inference import generate_code
+from src.inference import generate_code
 import torch
 from termcolor import colored
-from tokenizer import tokenizer
-from model import SimpleDecoder, get_llama
+from src.tokenizer import tokenizer
+from src.model import SimpleDecoder, get_llama
 
 epoch = input('Enter an epoch to load weights for, or leave blank to use only the pretrained llama model: ')
 

@@ -1,8 +1,8 @@
 import torch
-from model import SimpleDecoder, get_llama
-from tokenizer import tokenizer
+from src.model import SimpleDecoder, get_llama
+from src.tokenizer import tokenizer
 import tqdm
-import util
+import src.util
 import wandb
 
 torch.manual_seed(16)
