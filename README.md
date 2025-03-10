@@ -26,3 +26,9 @@ If you get an error referring to a missing "python.h installation, run `./bin/in
 ## Inference
 
 With the virtual env activated, run `python -m bin.infer`. You can now choose to test the base llama model, or load a model from one of the saved checkpoints. You can then enter some code to test completion with, or use the example code as defined in the `bin/infer.py` file.
+
+## Developing on a remote machine
+
+The `bin/ssh.sh` script allows you to quickly clone the project to a remote machine and open it in vscode via ssh.
+
+You can then use the `bin/copy_train_data.sh` script to copy the training data loaded by the `preprocess` script onto the remote machine for training.

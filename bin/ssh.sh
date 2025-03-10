@@ -3,12 +3,11 @@
 open_remote () {
     read -p "Enter an ip or host to connect to: " ip
     read -p "Enter a port: " port
+    read -p "Enter a username: " username
     
-    repo_ref="cnimmo16/distillation"
+    repo_ref="cnimmo16/nextpilot"
 
     repo_url="https://github.com/$repo_ref"
-
-    username=ubuntu
 
     repo_name=$(basename "$repo_url")
 
