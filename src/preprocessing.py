@@ -137,7 +137,11 @@ def get_ts_files(repo_full_name, next_dir):
 
     def fetch_files(_url: str):
         response = requests.get(_url, headers=headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            print(f"Error fetching file at: {_url} - {err}")
+            return
         items = response.json()
         for item in items:
             if item["type"] == "file" and (item["name"].endswith(".ts") or item["name"].endswith(".tsx")):
