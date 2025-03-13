@@ -5,9 +5,10 @@ def generate_code(
     tokenizer,
     prompt,
     max_length=100,
+    device="cpu"
 ):
     model.eval()
-    input_ids = tokenizer.encode(prompt, return_tensors="pt")
+    input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
     generated_ids = input_ids
 
     with torch.no_grad():
@@ -18,6 +19,7 @@ def generate_code(
             logits = logits[:, -1, :]  # Get logits for the last token
 
             next_token = logits.argmax(dim=-1)
+            print('next token', next_token.item())
 
             # Append the generated token
             generated_ids = torch.cat([generated_ids, next_token.unsqueeze(0)], dim=-1)

@@ -8,10 +8,12 @@ epoch = input('Enter an epoch to load weights for, or leave blank to use only th
 
 llama = get_llama()
 
-if epoch:
-    model = SimpleDecoder(vocab_size=len(tokenizer)).to("cuda")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-    checkpoint = torch.load(f"data/weights/epoch_{epoch}.pth", weights_only=False)
+if epoch:
+    model = SimpleDecoder(vocab_size=len(tokenizer)).to(DEVICE)
+
+    checkpoint = torch.load(f"data/checkpoints/epoch_{epoch}.pth", weights_only=False, map_location=DEVICE)
     state_dict = checkpoint['model_state_dict']
     for key in list(state_dict.keys()):
         if key.startswith("module."):
@@ -41,7 +43,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         llama,
         tokenizer,
         prompt,
-        max_length=100
+        max_length=100,
+        device=DEVICE
     )
 
     # Generate code
@@ -49,7 +52,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         model,
         tokenizer,
         prompt,
-        max_length=100
+        max_length=100,
+        device=DEVICE
     )
 
     print(colored('Llama completion:', 'green'))
