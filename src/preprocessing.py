@@ -157,6 +157,11 @@ def download_and_save_repo(repo):
     repo_name = repo['name']
     owner = repo['owner']['login']
     repo_full_name = f"{owner}/{repo_name}"
+
+    for file in os.listdir(OUTPUT_DIR):
+        if file.startswith(repo_full_name.replace('/', '__')):
+            print("> already processed, skipping")
+            return
     
     # Check for next.config.js
     next_dirs = get_next_directories(repo_full_name)

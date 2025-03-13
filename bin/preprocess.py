@@ -12,6 +12,5 @@ print(f"Found {len(repos)} repositories")
 for idx, repo in enumerate(repos):
     print(f"Processing {idx+1}/{len(repos)}: {repo['full_name']}")
     download_and_save_repo(repo)
-    time.sleep(5)
 
 print("Done")
