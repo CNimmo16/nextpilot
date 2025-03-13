@@ -19,7 +19,7 @@ open_remote () {
 
     echo "copying .env file"
 
-    scp -P ${port} ./.env ${username}@${ip}:${remote_homedir}/${repo_name}.env
+    scp -P ${port} ./.env ${username}@${ip}:${remote_homedir}/${repo_name}/.env
 
     echo "remote_homedir: ${remote_homedir}"
 

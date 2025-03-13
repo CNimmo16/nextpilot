@@ -3,12 +3,11 @@
 copy_data_to_remote () {
     read -p "Enter an ip or host to copy data to: " ip
     read -p "Enter a port: " port
-
-    username=ubuntu
+    read -p "Enter a username: " username
 
     remote_homedir="$(ssh ${username}@${ip} -p ${port} "pwd")"
 
-    repo_name=distillation
+    repo_name=nextpilot
 
     echo "zipping..."
     
