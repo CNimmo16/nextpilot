@@ -14,6 +14,7 @@ BATCH_SIZE = 32
 SEQ_LENGTH = 512
 EPOCHS = 100
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print("Using device", DEVICE)
 LEARNING_RATE = 0.001
 DISTILL_LOSS_TEMPERATURE = 0.7
 DISTILL_LOSS_ALPHA = 0.7  # Weight between teacher and ground truth loss

@@ -2,7 +2,7 @@ import torch
 from src.model import SimpleDecoder, get_llama
 from src.tokenizer import tokenizer
 import tqdm
-import src.util
+from src import util
 import wandb
 
 torch.manual_seed(16)
